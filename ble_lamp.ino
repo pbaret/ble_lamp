@@ -1,6 +1,6 @@
 /*********************************************************************
   Author: Pierre BARET
-  Open source: No License
+  Open source: The Unlicense
 *********************************************************************/
 
 #include <bluefruit.h>
@@ -11,21 +11,21 @@
 
 #define PIN A0
 
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(8, PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(8, PIN, NEO_GRB + NEO_KHZ800); // 8 Neo pixel stick in my case
 BLEUart bleuart;  // Uart over BLE service
 
-uint32_t min_loop_millis = 50;
+uint32_t min_loop_millis = 50;       // Min time for the main loop (gives enough time to process inputs)
 const uint32_t ANIM_DURATION = 5000; // Animation time in ms
 
+// BUFFER TO PROCESS INPUTS COMING THROUGH BLE (AND SIZE EXPECTED FOR THOSE INPUTS)
 #define READ_BUFSIZE                    (20)
 #define PACKET_BUTTON_LEN               (5)
 #define PACKET_COLOR_LEN                (6)
-/* Buffer to hold incoming characters */
-uint8_t packetbuffer[READ_BUFSIZE + 1];
+uint8_t packetbuffer[READ_BUFSIZE + 1]; // Buffer to hold incoming characters
 
-
+// Default colors for animations loop (8bits RGB format)
 const uint8_t nb_colors = 12;
-uint8_t colors[nb_colors][3] = {
+const uint8_t colors[nb_colors][3] = {
   {255, 0, 0},
   {255, 128, 0},
   {255, 255, 0},
@@ -39,15 +39,16 @@ uint8_t colors[nb_colors][3] = {
   {255, 0, 255},
   {255, 0, 128}
 };
-uint8_t current_color = 0;
+uint8_t current_color = 0;  // Holds current color index in the colors array (used for animations loop)
+// 'red', 'green' and 'blue' holds RGB values for the current displayed color
 uint8_t red = 255;
 uint8_t green = 0;
 uint8_t blue = 0;
 
-const uint8_t nb_animations = 5;
-uint8_t animation = 0;
-uint32_t animation_start = 0;
-uint8_t looping = 0;
+const uint8_t nb_animations = 5;  // Number of animation functions
+uint8_t animation = 0;            // Current animation index
+uint8_t looping = 0;              // Looping automatically from one animation to the other
+uint32_t animation_start = 0;     // Holds the time at start of the animation (to have a fixed animation time)
 
 void ProcessInput(uint8_t len);
 void CmdNextAnim(void);
@@ -63,6 +64,8 @@ void larsonScanner(uint8_t wait);
 void colorWipe(uint32_t c, uint8_t wait);
 void theaterChase(uint8_t wait);
 
+
+// Arduino setup
 void setup(void)
 {
   Serial.begin(115200);
@@ -82,6 +85,7 @@ void setup(void)
 }
 
 
+// Start advertising BLE
 void startAdv(void)
 {
   Bluefruit.setName("BabyFoxLamp");
@@ -113,14 +117,16 @@ void startAdv(void)
 }
 
 
+// Arduino main loop
 void loop(void)
 {
   uint32_t start = millis();
-  uint8_t idx = 0;
 
   // 1. Process Inputs
   if (bleuart.available())
   {
+    uint8_t idx = 0; // index for incoming characters from BLE
+
     // Reset reception buffer
     memset(packetbuffer, 0, READ_BUFSIZE);
     while ((bleuart.available()) && (idx < READ_BUFSIZE))
@@ -133,7 +139,7 @@ void loop(void)
     ProcessInput(idx);
   }
   
-  // 2. Update state
+  // 2. Update animation state
   switch (animation)
   {
   case 0:
@@ -167,6 +173,8 @@ void loop(void)
 }
 
 
+// Process inputs
+// @param len : lenght of packet received by BLE
 void ProcessInput(uint8_t len)
 {
   if (len != 0)
@@ -412,7 +420,7 @@ void colorWipe(uint32_t c, uint8_t wait)
 }
 
 //Theatre-style crawling lights
-uint8_t q = 0;
+uint8_t q = 0;  // Current step for the theaterChase animation
 void theaterChase(uint8_t wait)
 {
   uint32_t time_since_anim_start = millis() - animation_start;
