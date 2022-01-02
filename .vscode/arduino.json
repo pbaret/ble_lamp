@@ -1,0 +1,8 @@
+{
+    "configuration": "softdevice=s132v6,debug=l0",
+    "board": "adafruit:nrf52:feather52832",
+    "programmer": "adafruit:nrfutil_boot",
+    "port": "COM4",
+    "sketch": "ble_lamp.ino",
+    "output": "../build"
+}
