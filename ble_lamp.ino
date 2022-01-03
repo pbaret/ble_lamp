@@ -9,10 +9,14 @@
 #include <avr/power.h>
 #endif
 
-#define PIN A0
+#define ENBLEPIN A2 // Enable/disable BLE
+#define LEDPIN A0   // DIN of the led strip
+#define VBATPIN A7  // To check battery level on feather board nRF52832 (might be different pin for other boards)
 
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(8, PIN, NEO_GRB + NEO_KHZ800); // 8 Neo pixel stick in my case
-BLEUart bleuart;  // Uart over BLE service
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(8, LEDPIN, NEO_GRB + NEO_KHZ800); // 8 Neo pixel stick in my case
+BLEUart bleuart;    // Uart over BLE service
+uint8_t ble_enable; // Holds wether BLE service advertising is enable or not
+uint8_t ble_button_state; // Holds previous ble button state
 
 uint32_t min_loop_millis = 50;       // Min time for the main loop (gives enough time to process inputs)
 const uint32_t ANIM_DURATION = 5000; // Animation time in ms
@@ -50,6 +54,7 @@ uint8_t animation = 0;            // Current animation index
 uint8_t looping = 0;              // Looping automatically from one animation to the other
 uint32_t animation_start = 0;     // Holds the time at start of the animation (to have a fixed animation time)
 
+void CheckBattery(void);
 void ProcessInput(uint8_t len);
 void CmdNextAnim(void);
 void CmdPrevAnim(void);
@@ -74,6 +79,12 @@ void setup(void)
   Serial.println(F("Baby Fox BLE Lamp"));
   Serial.println(F("-----------------"));
 
+  pinMode(ENBLEPIN, INPUT); // Push button to enable/disable BLE
+  pinMode(VBATPIN, INPUT);  // To read battery voltage
+  analogReadResolution(10); // Analog read res 10 bit : 0..1023
+  digitalWrite(PIN_LED1, LOW);
+  ble_button_state = LOW;
+
   Bluefruit.begin();
   Bluefruit.setTxPower(4);    // Check bluefruit.h for supported values
 
@@ -88,6 +99,7 @@ void setup(void)
 // Start advertising BLE
 void startAdv(void)
 {
+  Serial.println(F("BLE advertising: START"));
   Bluefruit.setName("BabyFoxLamp");
 
   // Advertising packet
@@ -114,8 +126,40 @@ void startAdv(void)
   Bluefruit.Advertising.setInterval(32, 244);    // in unit of 0.625 ms
   Bluefruit.Advertising.setFastTimeout(30);      // number of seconds in fast mode
   Bluefruit.Advertising.start(0);                // 0 = Don't stop advertising after n seconds
+  
+  ble_enable = 1;
 }
 
+// Stop advertising BLE
+void stopAdv(void)
+{
+  Serial.println(F("BLE advertising: STOP"));
+  Bluefruit.Advertising.restartOnDisconnect(false);
+  Bluefruit.Advertising.stop();
+  
+  ble_enable = 0;
+}
+
+// Callback for when user push the button to enable/disable BLE
+void EnableBLEPushCallback(void)
+{
+  // If BLE is disabled, we enable it by starting advertising
+  if (ble_enable == 0)
+  {
+    startAdv();
+  }
+  // Else we disable BLE only if no app is currently connected
+  else
+  {
+    if (Bluefruit.Periph.connected())
+    {
+      printf("Don't disable BLE if an app is currently connected\n");
+    }
+    else{
+      stopAdv();
+    }
+  }
+}
 
 // Arduino main loop
 void loop(void)
@@ -123,6 +167,14 @@ void loop(void)
   uint32_t start = millis();
 
   // 1. Process Inputs
+  // 1.1 BLE enable push button
+  uint8_t previous_state = ble_button_state;
+  ble_button_state = digitalRead(ENBLEPIN);
+  if ((ble_button_state == LOW) && (previous_state == HIGH)) // detect only push button release so we ensure the callback is called only once
+  {
+    EnableBLEPushCallback();
+  }
+  // 1.2 Incoming commands from BLE UART
   if (bleuart.available())
   {
     uint8_t idx = 0; // index for incoming characters from BLE
@@ -161,6 +213,9 @@ void loop(void)
     break;
   }
 
+  // 3. Utils : battery level
+  CheckBattery();
+
   uint32_t end = millis();
   uint32_t loop_time = end - start;
 
@@ -172,6 +227,25 @@ void loop(void)
   }
 }
 
+// Checks battery level on pin A7
+void CheckBattery(void)
+{
+  float measuredvbat = analogRead(VBATPIN);
+  float v_per_lsb = 3.6F/1024.0F; // 10-bit ADC with 3.6V input range
+  measuredvbat *= v_per_lsb;
+
+  Serial.printf("VBat: %.2f\r\n", measuredvbat);
+
+  if (measuredvbat < 2.65f) // Threshold set empirically
+  {
+    digitalWrite(PIN_LED1, HIGH);
+  }
+  else
+  {
+    digitalWrite(PIN_LED1, LOW);
+  }
+  delay(1);
+}
 
 // Process inputs
 // @param len : lenght of packet received by BLE
