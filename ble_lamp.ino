@@ -30,24 +30,24 @@ uint8_t packetbuffer[READ_BUFSIZE + 1]; // Buffer to hold incoming characters
 // Default colors for animations loop (8bits RGB format)
 const uint8_t nb_colors = 12;
 const uint8_t colors[nb_colors][3] = {
+  {0, 128, 255},
+  {0, 0, 255},
+  {128, 0, 255},
+  {255, 0, 255},
+  {255, 0, 128},
   {255, 0, 0},
   {255, 128, 0},
   {255, 255, 0},
   {128, 255, 0},
   {0, 255, 0},
   {0, 255, 128},
-  {0, 255, 255},
-  {0, 128, 255},
-  {0, 0, 255},
-  {128, 0, 255},
-  {255, 0, 255},
-  {255, 0, 128}
+  {0, 255, 255}
 };
 int8_t current_color = 0;  // Holds current color index in the colors array (used for animations loop)
 // 'red', 'green' and 'blue' holds RGB values for the current displayed color
-uint8_t red = 255;
-uint8_t green = 0;
-uint8_t blue = 0;
+uint8_t red = colors[current_color][0];
+uint8_t green = colors[current_color][1];
+uint8_t blue = colors[current_color][2];
 
 const int8_t nb_animations = 5;  // Number of animation functions
 int8_t animation = 0;            // Current animation index
@@ -195,10 +195,10 @@ void loop(void)
   switch (animation)
   {
   case 0:
-    larsonScanner(60);
+    fadeInFadeOut(strip.Color(red, green, blue));
     break;
   case 1:
-    fadeInFadeOut(strip.Color(red, green, blue));
+    larsonScanner(60);
     break;
   case 2:
     colorWipe(strip.Color(red, green, blue), 60);
